@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+{% block title %}사용자 관리 – MediaHub{% endblock %}
+
+{% block content %}
+<div class="admin-page">
+  <div class="admin-header">
+    <h1>사용자 관리</h1>
+    <a href="{{ url_for('admin_dashboard') }}" class="btn btn-ghost">← 대시보드</a>
+  </div>
+
+  <div class="admin-section">
+    <table class="admin-table">
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>아이디</th>
+          <th>이메일</th>
+          <th>권한</th>
+          <th>가입일</th>
+          <th>마지막 로그인</th>
+          <th>관리</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for user in users %}
+        <tr>
+          <td>{{ user.id }}</td>
+          <td>{{ user.username }}</td>
+          <td>{{ user.email or '-' }}</td>
+          <td>
+            {% if user.username == 'admin' %}
+              <span class="type-badge-sm" style="color:var(--primary)">관리자 (고정)</span>
+            {% else %}
+            <form method="post" action="{{ url_for('admin_change_role', user_id=user.id) }}" style="display:inline">
+              <select name="role" onchange="this.form.submit()" class="role-select">
+                <option value="user"  {% if user.role == 'user'  %}selected{% endif %}>일반</option>
+                <option value="admin" {% if user.role == 'admin' %}selected{% endif %}>관리자</option>
+              </select>
+            </form>
+            {% endif %}
+          </td>
+          <td>{{ user.created_at.strftime('%Y.%m.%d') }}</td>
+          <td>{{ user.last_login.strftime('%Y.%m.%d %H:%M') if user.last_login else '-' }}</td>
+          <td>
+            {% if user.id != current_user.id %}
+            <form method="post" action="{{ url_for('admin_delete_user', user_id=user.id) }}"
+                  onsubmit="return confirm('{{ user.username }} 계정을 삭제하시겠습니까?')">
+              <button type="submit" class="btn-sm btn-danger">삭제</button>
+            </form>
+            {% else %}
+            <span style="color:var(--text-dim)">본인</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,482 @@
+{% extends "base.html" %}
+{% block title %}관리자 대시보드 – MediaHub{% endblock %}
+
+{% block extra_css %}
+<style>
+/* ── 탭 ─────────────────────────────────────────────────────────────── */
+.admin-tabs {
+  display: flex; gap: 4px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 28px; overflow-x: auto;
+}
+.admin-tab-btn {
+  padding: 10px 18px; font-size: 14px; font-weight: 500;
+  background: none; border: none; color: var(--text-sub);
+  cursor: pointer; border-bottom: 2px solid transparent;
+  margin-bottom: -1px; white-space: nowrap;
+  transition: color 0.15s, border-color 0.15s;
+}
+.admin-tab-btn:hover { color: var(--text); }
+.admin-tab-btn.active { color: var(--primary); border-bottom-color: var(--primary); }
+.admin-tab-panel { display: none; }
+.admin-tab-panel.active { display: block; }
+
+/* ── 게이지 ──────────────────────────────────────────────────────────── */
+.compute-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 20px; margin-bottom: 24px;
+}
+.compute-card {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 12px; padding: 24px;
+}
+.compute-card h3 { font-size: 13px; color: var(--text-sub); margin-bottom: 16px; font-weight: 600; }
+.gauge-row { margin-bottom: 12px; }
+.gauge-label {
+  display: flex; justify-content: space-between;
+  font-size: 13px; margin-bottom: 6px;
+}
+.gauge-label span:first-child { color: var(--text-sub); }
+.gauge-label span:last-child  { font-weight: 600; }
+.gauge-track {
+  height: 10px; background: var(--surface2);
+  border-radius: 6px; overflow: hidden;
+}
+.gauge-fill { height: 100%; border-radius: 6px; transition: width 0.6s ease; }
+.gauge-cpu  { background: #4f8ef7; }
+.gauge-mem  { background: #27ae60; }
+.gauge-disk { background: #e67e22; }
+.gauge-warn { background: #e74c3c; }
+
+/* ── 태그 ────────────────────────────────────────────────────────────── */
+.tag {
+  display: inline-block; padding: 2px 8px;
+  border-radius: 4px; font-size: 11px; font-weight: 600;
+}
+.tag-video { background: rgba(79,142,247,.15); color: #4f8ef7; }
+.tag-image { background: rgba(39,174,96,.15);  color: #27ae60; }
+.tag-other { background: var(--surface2); color: var(--text-sub); }
+
+/* ── 테이블 래퍼 ────────────────────────────────────────────────────── */
+.table-wrap {
+  overflow-x: auto;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+}
+.table-wrap .admin-table th:first-child,
+.table-wrap .admin-table td:first-child { padding-left: 16px; }
+
+/* ── 섹션 헤더 ──────────────────────────────────────────────────────── */
+.section-meta {
+  display: flex; align-items: center; gap: 10px; margin-bottom: 16px;
+}
+.section-meta h2 { margin-bottom: 0; }
+.section-count {
+  font-size: 12px; color: var(--text-sub);
+  background: var(--surface2); padding: 2px 8px; border-radius: 20px;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="admin-page">
+
+  <div class="admin-header">
+    <div>
+      <h1>관리자 대시보드</h1>
+      <p style="color:var(--text-sub);font-size:13px;margin-top:4px">MediaHub 운영 현황</p>
+    </div>
+    <a href="{{ url_for('admin_users') }}" class="btn btn-ghost">사용자 관리 →</a>
+  </div>
+
+  <!-- ── 요약 카드 ──────────────────────────────────────────────────────── -->
+  <div class="admin-stats">
+    <div class="stat-card">
+      <div class="stat-icon">🎬</div>
+      <div class="stat-value">{{ total_media }}</div>
+      <div class="stat-label">전체 게시물</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-icon">👤</div>
+      <div class="stat-value">{{ total_users }}</div>
+      <div class="stat-label">전체 사용자</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-icon">👁</div>
+      <div class="stat-value">{{ '{:,}'.format(total_views) }}</div>
+      <div class="stat-label">총 조회수</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-icon">💾</div>
+      <div class="stat-value" style="font-size:22px">{{ total_size | humanize }}</div>
+      <div class="stat-label">총 업로드 용량</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-icon">🖥</div>
+      <div class="stat-value" style="font-size:28px">{{ cpu_percent }}%</div>
+      <div class="stat-label">EC2 CPU</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-icon">🧠</div>
+      <div class="stat-value" style="font-size:28px">{{ mem_percent }}%</div>
+      <div class="stat-label">EC2 메모리</div>
+    </div>
+  </div>
+
+  <!-- ── 탭 네비게이션 ─────────────────────────────────────────────────── -->
+  <div class="admin-tabs">
+    <button class="admin-tab-btn active"  onclick="switchTab('overview',  this)">개요</button>
+    <button class="admin-tab-btn"         onclick="switchTab('computing', this)">컴퓨팅</button>
+    <button class="admin-tab-btn"         onclick="switchTab('uploads',   this)">업로드 기록</button>
+    <button class="admin-tab-btn"         onclick="switchTab('s3',        this)">S3 목록</button>
+    <button class="admin-tab-btn"         onclick="switchTab('metadata',  this)">미디어 메타데이터</button>
+  </div>
+
+  <!-- ════════════════════════════════════════════════════════════════════ -->
+  <!-- 탭: 개요                                                            -->
+  <!-- ════════════════════════════════════════════════════════════════════ -->
+  <div id="tab-overview" class="admin-tab-panel active">
+
+    <!-- 기타 통계 -->
+    <div class="admin-section">
+      <h2>기타 통계</h2>
+      <div class="admin-stats" style="margin-bottom:0">
+        <div class="stat-card">
+          <div class="stat-icon">🎥</div>
+          <div class="stat-value">{{ video_count }}</div>
+          <div class="stat-label">동영상</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon">🖼</div>
+          <div class="stat-value">{{ image_count }}</div>
+          <div class="stat-label">이미지</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon">📊</div>
+          <div class="stat-value" style="font-size:20px">
+            {% if total_media > 0 %}
+              {{ (total_size // total_media) | humanize }}
+            {% else %}–{% endif %}
+          </div>
+          <div class="stat-label">파일 평균 크기</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon">💿</div>
+          <div class="stat-value" style="font-size:28px">{{ disk_percent }}%</div>
+          <div class="stat-label">디스크 사용률</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- AWS 인프라 현황 -->
+    <div class="admin-section">
+      <h2>인프라 현황</h2>
+      <div class="infra-grid">
+        <div class="infra-card">
+          <div class="infra-header">
+            <span class="infra-icon">🖥️</span>
+            <span class="infra-name">EC2 인스턴스</span>
+            <span class="status-dot active"></span>
+          </div>
+          <div class="infra-body">
+            <div class="infra-row"><span>리전</span><span>ap-northeast-2</span></div>
+            <div class="infra-row"><span>서브넷</span><span>Private</span></div>
+            <div class="infra-row"><span>로드밸런서</span><span>ALB</span></div>
+          </div>
+        </div>
+        <div class="infra-card">
+          <div class="infra-header">
+            <span class="infra-icon">🗄️</span>
+            <span class="infra-name">RDS MySQL</span>
+            <span class="status-dot active"></span>
+          </div>
+          <div class="infra-body">
+            <div class="infra-row"><span>엔진</span><span>MySQL 8.0</span></div>
+            <div class="infra-row"><span>서브넷</span><span>Private</span></div>
+            <div class="infra-row"><span>SSL</span><span>활성화</span></div>
+          </div>
+        </div>
+        <div class="infra-card">
+          <div class="infra-header">
+            <span class="infra-icon">📁</span>
+            <span class="infra-name">S3 버킷</span>
+            <span class="status-dot active"></span>
+          </div>
+          <div class="infra-body">
+            <div class="infra-row"><span>버킷</span><span>cisco-team3-s3</span></div>
+            <div class="infra-row"><span>접근</span><span>OAC (CloudFront)</span></div>
+            <div class="infra-row"><span>경로</span><span>image/ · media/</span></div>
+          </div>
+        </div>
+        <div class="infra-card">
+          <div class="infra-header">
+            <span class="infra-icon">⚡</span>
+            <span class="infra-name">CloudFront CDN</span>
+            <span class="status-dot active"></span>
+          </div>
+          <div class="infra-body">
+            <div class="infra-row"><span>도메인</span><span>d1qxao9g9fffac.cf.net</span></div>
+            <div class="infra-row"><span>오리진</span><span>S3 + ALB</span></div>
+            <div class="infra-row"><span>캐싱</span><span>활성화</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 관리 메뉴 -->
+    <div class="admin-section">
+      <h2>관리 메뉴</h2>
+      <div class="admin-menu-grid">
+        <a href="{{ url_for('admin_users') }}" class="admin-menu-card">
+          <span class="admin-menu-icon">👥</span>
+          <span class="admin-menu-label">사용자 관리</span>
+          <span class="admin-menu-desc">{{ total_users }}명 등록됨</span>
+        </a>
+        <a href="{{ url_for('index') }}" class="admin-menu-card">
+          <span class="admin-menu-icon">🎬</span>
+          <span class="admin-menu-label">게시물 목록</span>
+          <span class="admin-menu-desc">{{ total_media }}개 게시물</span>
+        </a>
+      </div>
+    </div>
+
+  </div><!-- /tab-overview -->
+
+  <!-- ════════════════════════════════════════════════════════════════════ -->
+  <!-- 탭: 컴퓨팅                                                          -->
+  <!-- ════════════════════════════════════════════════════════════════════ -->
+  <div id="tab-computing" class="admin-tab-panel">
+
+    <div class="compute-grid">
+      <!-- CPU -->
+      <div class="compute-card">
+        <h3>CPU 사용률</h3>
+        <div class="gauge-row">
+          <div class="gauge-label">
+            <span>전체 CPU</span>
+            <span>{{ cpu_percent }}%</span>
+          </div>
+          <div class="gauge-track">
+            <div class="gauge-fill {{ 'gauge-warn' if cpu_percent > 80 else 'gauge-cpu' }}"
+                 style="width:{{ cpu_percent }}%"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 메모리 -->
+      <div class="compute-card">
+        <h3>메모리 사용률</h3>
+        <div class="gauge-row">
+          <div class="gauge-label">
+            <span>사용 / 전체</span>
+            <span>{{ mem_used | humanize }} / {{ mem_total | humanize }}</span>
+          </div>
+          <div class="gauge-track">
+            <div class="gauge-fill {{ 'gauge-warn' if mem_percent > 85 else 'gauge-mem' }}"
+                 style="width:{{ mem_percent }}%"></div>
+          </div>
+        </div>
+        <p style="font-size:12px;color:var(--text-sub);margin-top:4px">{{ mem_percent }}% 사용 중</p>
+      </div>
+
+      <!-- 디스크 -->
+      <div class="compute-card">
+        <h3>디스크 사용률</h3>
+        <div class="gauge-row">
+          <div class="gauge-label">
+            <span>사용 / 전체</span>
+            <span>{{ disk_used | humanize }} / {{ disk_total | humanize }}</span>
+          </div>
+          <div class="gauge-track">
+            <div class="gauge-fill {{ 'gauge-warn' if disk_percent > 85 else 'gauge-disk' }}"
+                 style="width:{{ disk_percent }}%"></div>
+          </div>
+        </div>
+        <p style="font-size:12px;color:var(--text-sub);margin-top:4px">{{ disk_percent }}% 사용 중</p>
+      </div>
+    </div>
+
+    <p style="font-size:12px;color:var(--text-sub)">
+      * 페이지 로드 시점 기준 측정값입니다. 최신 값을 확인하려면 새로고침하세요.
+    </p>
+
+  </div><!-- /tab-computing -->
+
+  <!-- ════════════════════════════════════════════════════════════════════ -->
+  <!-- 탭: 업로드 기록                                                      -->
+  <!-- ════════════════════════════════════════════════════════════════════ -->
+  <div id="tab-uploads" class="admin-tab-panel">
+
+    <div class="section-meta">
+      <h2>업로드 기록</h2>
+      <span class="section-count">최근 {{ recent_uploads | length }}건</span>
+    </div>
+
+    <div class="table-wrap">
+      <table class="admin-table">
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>제목</th>
+            <th>업로더</th>
+            <th>형식</th>
+            <th>크기</th>
+            <th>파일 수</th>
+            <th>조회수</th>
+            <th>업로드 일시</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for m in recent_uploads %}
+          <tr>
+            <td style="color:var(--text-sub)">{{ m.id }}</td>
+            <td>
+              <a href="{{ url_for('media_detail', media_id=m.id) }}" target="_blank">
+                {{ m.title | truncate(30) }}
+              </a>
+            </td>
+            <td>{{ m.uploader.username if m.uploader else '익명' }}</td>
+            <td>
+              {% if m.is_video %}
+                <span class="tag tag-video">VIDEO</span>
+              {% elif m.is_image %}
+                <span class="tag tag-image">IMAGE</span>
+              {% else %}
+                <span class="tag tag-other">–</span>
+              {% endif %}
+            </td>
+            <td>{{ m.file_size | humanize }}</td>
+            <td>{{ m.files | length }}</td>
+            <td>{{ m.views }}</td>
+            <td style="color:var(--text-sub);white-space:nowrap">
+              {{ m.created_at.strftime('%Y-%m-%d %H:%M') }}
+            </td>
+          </tr>
+          {% else %}
+          <tr><td colspan="8" class="admin-empty" style="padding:20px 16px">업로드 기록이 없습니다.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+  </div><!-- /tab-uploads -->
+
+  <!-- ════════════════════════════════════════════════════════════════════ -->
+  <!-- 탭: S3 목록                                                         -->
+  <!-- ════════════════════════════════════════════════════════════════════ -->
+  <div id="tab-s3" class="admin-tab-panel">
+
+    <div class="section-meta">
+      <h2>S3 오브젝트 목록</h2>
+      <span class="section-count">{{ s3_objects | length }}개 (최대 200개 표시)</span>
+    </div>
+
+    {% if s3_error %}
+      <p style="color:#e74c3c;font-size:13px;margin-bottom:16px">
+        S3 조회 오류: {{ s3_error }}
+      </p>
+    {% endif %}
+
+    <div class="table-wrap">
+      <table class="admin-table">
+        <thead>
+          <tr>
+            <th>키 (경로)</th>
+            <th>크기</th>
+            <th>마지막 수정</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for obj in s3_objects %}
+          <tr>
+            <td style="font-family:monospace;font-size:12px">{{ obj.Key }}</td>
+            <td>{{ obj.Size | humanize }}</td>
+            <td style="color:var(--text-sub);white-space:nowrap;font-size:12px">
+              {{ obj.LastModified.strftime('%Y-%m-%d %H:%M') }}
+            </td>
+          </tr>
+          {% else %}
+          <tr><td colspan="3" class="admin-empty" style="padding:20px 16px">S3 오브젝트가 없습니다.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+  </div><!-- /tab-s3 -->
+
+  <!-- ════════════════════════════════════════════════════════════════════ -->
+  <!-- 탭: 미디어 메타데이터 (RDS)                                          -->
+  <!-- ════════════════════════════════════════════════════════════════════ -->
+  <div id="tab-metadata" class="admin-tab-panel">
+
+    <div class="section-meta">
+      <h2>미디어 메타데이터 (RDS)</h2>
+      <span class="section-count">최근 {{ media_list | length }}건</span>
+    </div>
+
+    <div class="table-wrap">
+      <table class="admin-table">
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>제목</th>
+            <th>업로더</th>
+            <th>형식</th>
+            <th>크기</th>
+            <th>파일 수</th>
+            <th>조회수</th>
+            <th>S3 키</th>
+            <th>생성일</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for m in media_list %}
+          <tr>
+            <td style="color:var(--text-sub)">{{ m.id }}</td>
+            <td>
+              <a href="{{ url_for('media_detail', media_id=m.id) }}" target="_blank">
+                {{ m.title | truncate(24) }}
+              </a>
+            </td>
+            <td>{{ m.uploader.username if m.uploader else '익명' }}</td>
+            <td>
+              {% if m.is_video %}
+                <span class="tag tag-video">VIDEO</span>
+              {% elif m.is_image %}
+                <span class="tag tag-image">IMAGE</span>
+              {% else %}
+                <span class="tag tag-other">–</span>
+              {% endif %}
+            </td>
+            <td>{{ m.file_size | humanize }}</td>
+            <td>{{ m.files | length }}</td>
+            <td>{{ m.views }}</td>
+            <td style="font-family:monospace;font-size:11px;color:var(--text-sub);
+                       max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">
+              {{ m.s3_key or '–' }}
+            </td>
+            <td style="color:var(--text-sub);white-space:nowrap;font-size:12px">
+              {{ m.created_at.strftime('%Y-%m-%d') }}
+            </td>
+          </tr>
+          {% else %}
+          <tr><td colspan="9" class="admin-empty" style="padding:20px 16px">미디어가 없습니다.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+  </div><!-- /tab-metadata -->
+
+</div><!-- /admin-page -->
+
+<script>
+function switchTab(name, btn) {
+  document.querySelectorAll('.admin-tab-panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.admin-tab-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('tab-' + name).classList.add('active');
+  btn.classList.add('active');
+}
+</script>
+{% endblock %}

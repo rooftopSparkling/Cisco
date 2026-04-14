@@ -1,0 +1,117 @@
+{% extends "base.html" %}
+{% block title %}MediaHub – 업로드{% endblock %}
+
+{% block content %}
+<div class="upload-page">
+  <div class="upload-container">
+    <h1 class="page-title">미디어 업로드</h1>
+    <p class="page-subtitle">
+      {{ limit_mb }}MB 이하는 즉시 업로드 · 초과 시 멀티파트 자동 전환
+    </p>
+
+    <!-- 업로드 폼 -->
+    <form id="upload-form" class="upload-form" novalidate>
+
+      <!-- 드래그 앤 드롭 영역 -->
+      <div id="drop-zone" class="drop-zone">
+        <input type="file" id="file-input" accept="video/*,image/*" multiple hidden>
+        <div class="drop-icon">
+          <svg viewBox="0 0 24 24" fill="currentColor" width="56" height="56">
+            <path d="M19.35 10.04A7.49 7.49 0 0 0 12 4C9.11 4 6.6
+                     5.64 5.35 8.04A5.994 5.994 0 0 0 0 14c0 3.31
+                     2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM14
+                     13v4h-4v-4H7l5-5 5 5h-3z"/>
+          </svg>
+        </div>
+        <p class="drop-text">파일을 드래그하거나 <span class="drop-link">클릭하여 선택</span></p>
+        <p class="drop-hint">여러 파일 동시 선택 가능 · MP4, WebM, OGG, MOV, JPEG, PNG, GIF, WebP</p>
+        <div id="file-list" class="file-list hidden"></div>
+      </div>
+
+      <!-- 메타데이터 -->
+      <div class="form-group" id="title-group">
+        <label for="title">제목 <span class="required">*</span> <small id="title-hint" style="color:var(--text-dim);font-weight:400"></small></label>
+        <input type="text" id="title" name="title" placeholder="미디어 제목을 입력하세요"
+               maxlength="255">
+      </div>
+
+      <div class="form-group">
+        <label for="description">설명</label>
+        <textarea id="description" name="description"
+                  placeholder="미디어에 대한 설명을 입력하세요 (선택 사항)"
+                  rows="3"></textarea>
+      </div>
+
+      <!-- 업로드 진행률 -->
+      <div id="progress-section" class="progress-section hidden">
+        <div class="progress-header">
+          <span id="progress-label">업로드 중...</span>
+          <span id="progress-pct">0%</span>
+        </div>
+        <div class="progress-bar-wrap">
+          <div id="progress-bar" class="progress-bar" style="width:0%"></div>
+        </div>
+        <div id="progress-detail" class="progress-detail"></div>
+      </div>
+
+      <!-- 결과 메시지 -->
+      <div id="upload-result" class="upload-result hidden"></div>
+
+      <!-- 제출 버튼 -->
+      <div class="form-actions">
+        <a href="{{ url_for('index') }}" class="btn btn-ghost">취소</a>
+        <button type="submit" id="submit-btn" class="btn btn-primary" disabled>
+          <svg viewBox="0 0 24 24" fill="currentColor" width="18" height="18">
+            <path d="M9 16h6v-6h4l-7-7-7 7h4zm-4 2h14v2H5z"/>
+          </svg>
+          업로드
+        </button>
+      </div>
+    </form>
+  </div>
+
+  <!-- 업로드 안내 -->
+  <aside class="upload-guide">
+    <h3>업로드 안내</h3>
+    <ul>
+      <li>
+        <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16">
+          <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
+        </svg>
+        S3 Presigned URL을 통한 안전한 직접 업로드
+      </li>
+      <li>
+        <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16">
+          <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
+        </svg>
+        {{ limit_mb }}MB 초과 파일은 Multipart Upload 자동 적용
+      </li>
+      <li>
+        <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16">
+          <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
+        </svg>
+        CloudFront CDN을 통한 글로벌 고속 스트리밍
+      </li>
+      <li>
+        <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16">
+          <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
+        </svg>
+        OAC 보안으로 원본 S3 URL 직접 접근 차단
+      </li>
+      <li>
+        <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16">
+          <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
+        </svg>
+        Content-length-range로 악성 파일 용량 제한
+      </li>
+    </ul>
+  </aside>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  const MULTIPART_THRESHOLD = {{ limit_mb }} * 1024 * 1024;
+</script>
+<script src="{{ url_for('static', filename='js/upload.js') }}?v=2"></script>
+{% endblock %}

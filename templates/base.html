@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}MediaHub{% endblock %}</title>
+  {% block og_tags %}
+  <meta property="og:title" content="MediaHub">
+  <meta property="og:description" content="디지털 미디어 공유 플랫폼">
+  <meta property="og:type" content="website">
+  {% endblock %}
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}?v=3">
+  {% block extra_css %}{% endblock %}
+</head>
+<body>
+
+<!-- ── 네비게이션 ─────────────────────────────────────────────────────── -->
+<nav class="navbar">
+  <div class="nav-inner">
+    <a href="{{ url_for('index') }}" class="nav-logo">
+      <svg viewBox="0 0 24 24" fill="currentColor" width="28" height="28">
+        <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10
+                 10-4.48 10-10S17.52 2 12 2zm-2 14.5v-9l6 4.5-6 4.5z"/>
+      </svg>
+      MediaHub
+    </a>
+
+    <form class="nav-search" action="{{ url_for('index') }}" method="get">
+      <input type="search" name="q" placeholder="미디어 검색..."
+             value="{{ request.args.get('q', '') }}">
+      <button type="submit">
+        <svg viewBox="0 0 24 24" fill="currentColor" width="18" height="18">
+          <path d="M15.5 14h-.79l-.28-.27A6.47 6.47 0 0 0 16 9.5
+                   6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57
+                   l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01
+                   14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5
+                   11.99 14 9.5 14z"/>
+        </svg>
+      </button>
+    </form>
+
+    <div class="nav-actions">
+      {% if current_user %}
+        {% if current_user.is_admin %}
+          {% if request.path.startswith('/admin') %}
+          <a href="{{ url_for('index') }}" class="btn btn-ghost">메인</a>
+          {% else %}
+          <a href="{{ url_for('admin_dashboard') }}" class="btn btn-ghost">대시보드</a>
+          {% endif %}
+        {% endif %}
+        <a href="{{ url_for('upload') }}" class="btn btn-primary btn-sm-nav">업로드</a>
+        <a href="{{ url_for('logout') }}" class="btn btn-ghost">로그아웃</a>
+      {% else %}
+        <a href="{{ url_for('login') }}" class="btn btn-ghost">로그인</a>
+        <a href="{{ url_for('register') }}" class="btn btn-primary">회원가입</a>
+      {% endif %}
+    </div>
+  </div>
+</nav>
+
+<!-- ── 메인 콘텐츠 ────────────────────────────────────────────────────── -->
+<main class="main-content">
+  {% block content %}{% endblock %}
+</main>
+
+<!-- ── 푸터 ──────────────────────────────────────────────────────────── -->
+<footer class="footer">
+  <div class="footer-inner">
+    <span>© 2026 MediaHub — Team LSA (전지훈, 이민서, 한성빈)</span>
+    <span class="footer-stack">
+      EC2 · ALB · CloudFront · S3 · RDS · CloudWatch
+    </span>
+  </div>
+</footer>
+
+{% block extra_js %}{% endblock %}
+</body>
+</html>

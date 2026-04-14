@@ -1,0 +1,128 @@
+{% extends "base.html" %}
+{% block title %}MediaHub – 미디어 갤러리{% endblock %}
+
+{% block content %}
+<!-- 히어로 배너 -->
+<section class="hero">
+  <div class="hero-inner">
+    <h1>디지털 미디어 공유 플랫폼</h1>
+    <p>영상과 이미지를 CloudFront CDN을 통해 전 세계에 빠르게 공유하세요</p>
+    <a href="{{ url_for('upload') }}" class="btn btn-primary btn-lg">
+      <svg viewBox="0 0 24 24" fill="currentColor" width="20" height="20">
+        <path d="M9 16h6v-6h4l-7-7-7 7h4zm-4 2h14v2H5z"/>
+      </svg>
+      지금 업로드
+    </a>
+  </div>
+</section>
+
+<!-- 인프라 뱃지 -->
+<section class="badges">
+  <div class="badge-list">
+    <span class="badge">CloudFront CDN</span>
+    <span class="badge">S3 스토리지</span>
+    <span class="badge">Multi-AZ RDS</span>
+    <span class="badge">Auto Scaling</span>
+    <span class="badge">OAC 보안</span>
+    <span class="badge">HTTPS/TLS</span>
+  </div>
+</section>
+
+<!-- 검색 결과 안내 -->
+{% if query %}
+<div class="search-info">
+  "<strong>{{ query }}</strong>" 검색 결과 — 총 {{ pagination.total }}개
+  <a href="{{ url_for('index') }}" class="clear-search">× 초기화</a>
+</div>
+{% endif %}
+
+<!-- 미디어 그리드 -->
+<section class="media-section">
+  {% if pagination.items %}
+  <div class="media-grid">
+    {% for media in pagination.items %}
+    <a class="media-card" href="{{ url_for('media_detail', media_id=media.id) }}">
+      <!-- 썸네일 -->
+      <div class="card-thumb">
+        {% if media.is_video %}
+          <video src="{{ media.cloudfront_url }}" preload="metadata"
+                 muted playsinline></video>
+          <div class="play-icon">
+            <svg viewBox="0 0 24 24" fill="currentColor" width="40" height="40">
+              <path d="M8 5v14l11-7z"/>
+            </svg>
+          </div>
+        {% elif media.is_image %}
+          <img src="{{ media.cloudfront_url }}"
+               alt="{{ media.title }}" loading="lazy">
+        {% else %}
+          <div class="card-thumb-placeholder">
+            <svg viewBox="0 0 24 24" fill="currentColor" width="48" height="48">
+              <path d="M14 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1
+                       0 2-.9 2-2V8l-6-6zm4 18H6V4h7v5h5v11z"/>
+            </svg>
+          </div>
+        {% endif %}
+        <!-- 타입 뱃지 -->
+        <span class="type-badge">
+          {% if media.is_video %}VIDEO{% elif media.is_image %}IMAGE{% else %}FILE{% endif %}
+        </span>
+      </div>
+
+      <!-- 카드 정보 -->
+      <div class="card-info">
+        <h3 class="card-title">{{ media.title }}</h3>
+        <div class="card-meta">
+          <span>
+            <svg viewBox="0 0 24 24" fill="currentColor" width="13" height="13">
+              <path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5
+                       11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12
+                       17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24
+                       5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34
+                       3-3-1.34-3-3-3z"/>
+            </svg>
+            {{ media.views }}
+          </span>
+          <span>{{ media.created_at.strftime('%Y.%m.%d') }}</span>
+        </div>
+      </div>
+    </a>
+    {% endfor %}
+  </div>
+
+  <!-- 페이지네이션 -->
+  {% if pagination.pages > 1 %}
+  <div class="pagination">
+    {% if pagination.has_prev %}
+      <a class="page-btn" href="?page={{ pagination.prev_num }}{% if query %}&q={{ query }}{% endif %}">‹ 이전</a>
+    {% endif %}
+
+    {% for p in pagination.iter_pages(left_edge=1, right_edge=1, left_current=2, right_current=2) %}
+      {% if p %}
+        <a class="page-btn {% if p == pagination.page %}active{% endif %}"
+           href="?page={{ p }}{% if query %}&q={{ query }}{% endif %}">{{ p }}</a>
+      {% else %}
+        <span class="page-ellipsis">…</span>
+      {% endif %}
+    {% endfor %}
+
+    {% if pagination.has_next %}
+      <a class="page-btn" href="?page={{ pagination.next_num }}{% if query %}&q={{ query }}{% endif %}">다음 ›</a>
+    {% endif %}
+  </div>
+  {% endif %}
+
+  {% else %}
+  <!-- 빈 상태 -->
+  <div class="empty-state">
+    <svg viewBox="0 0 24 24" fill="currentColor" width="72" height="72">
+      <path d="M18 3v2h-2V3H8v2H6V3H4v18h2v-2h2v2h8v-2h2v2h2V3h-2zM8
+               17H6v-2h2v2zm0-4H6v-2h2v2zm0-4H6V7h2v2zm10 8h-2v-2h2v2zm0-4h-2v-2h2v2zm0-4h-2V7h2v2z"/>
+    </svg>
+    <h2>아직 미디어가 없습니다</h2>
+    <p>첫 번째 미디어를 업로드해 보세요!</p>
+    <a href="{{ url_for('upload') }}" class="btn btn-primary">업로드 시작</a>
+  </div>
+  {% endif %}
+</section>
+{% endblock %}
