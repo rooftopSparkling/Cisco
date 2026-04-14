@@ -11,6 +11,8 @@ from functools import wraps
 from flask import (Flask, render_template, request, jsonify,
                    session, redirect, url_for, flash)
 from botocore.exceptions import ClientError
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker, joinedload
 
 from config import Config
 from models import db, Media, MediaFile, User
@@ -22,7 +24,44 @@ db.init_app(app)
 
 s3 = boto3.client('s3', region_name=Config.AWS_REGION)
 
+# ── Read Replica 세션 ──────────────────────────────────────────────────────────
+_replica_engine = create_engine(
+    Config.DB_REPLICA_URI,
+    connect_args={'ssl': {'ca': Config.SSL_CA}},
+    pool_pre_ping=True,
+)
+ReplicaSession = sessionmaker(bind=_replica_engine)
+
+def get_replica():
+    """읽기 전용 DB 세션 반환"""
+    return ReplicaSession()
+
 MULTIPART_THRESHOLD = Config.SIMPLE_UPLOAD_LIMIT_MB * 1024 * 1024
+
+
+class Pagination:
+    """replica 세션용 간단한 페이지네이션 래퍼"""
+    def __init__(self, items, total, page, per_page):
+        self.items    = items
+        self.total    = total
+        self.page     = page
+        self.per_page = per_page
+        self.pages    = max(1, (total + per_page - 1) // per_page)
+        self.has_prev = page > 1
+        self.has_next = page < self.pages
+        self.prev_num = page - 1 if self.has_prev else None
+        self.next_num = page + 1 if self.has_next else None
+
+    def iter_pages(self, left_edge=2, right_edge=2, left_current=2, right_current=3):
+        last = 0
+        for num in range(1, self.pages + 1):
+            if (num <= left_edge
+                    or self.page - left_current - 1 < num < self.page + right_current
+                    or num > self.pages - right_edge):
+                if last + 1 != num:
+                    yield None
+                yield num
+                last = num
 
 ALLOWED_TYPES = {
     'video/mp4', 'video/webm', 'video/ogg', 'video/quicktime',
@@ -77,16 +116,24 @@ def humanize_size(size):
 
 @app.route('/')
 def index():
-    page  = request.args.get('page', 1, type=int)
-    query = request.args.get('q', '').strip()
+    page     = request.args.get('page', 1, type=int)
+    query    = request.args.get('q', '').strip()
+    per_page = 12
 
-    media_q = Media.query.filter_by(is_public=True)
-    if query:
-        media_q = media_q.filter(Media.title.contains(query))
+    replica = get_replica()
+    try:
+        base_q = replica.query(Media).filter_by(is_public=True)
+        if query:
+            base_q = base_q.filter(Media.title.contains(query))
+        total = base_q.count()
+        items = (base_q.options(joinedload(Media.files))
+                       .order_by(Media.created_at.desc())
+                       .offset((page - 1) * per_page)
+                       .limit(per_page).all())
+    finally:
+        replica.close()
 
-    pagination = media_q.order_by(Media.created_at.desc()).paginate(
-        page=page, per_page=12, error_out=False
-    )
+    pagination = Pagination(items, total, page, per_page)
     return render_template('index.html', pagination=pagination, query=query)
 
 
@@ -99,13 +146,22 @@ def upload():
 
 @app.route('/post/<int:media_id>')
 def media_detail(media_id):
+    # 조회수 업데이트는 master
     media = Media.query.get_or_404(media_id)
     media.views += 1
     db.session.commit()
-    related = (Media.query
-               .filter(Media.id != media_id, Media.is_public == True)
-               .order_by(Media.created_at.desc())
-               .limit(6).all())
+
+    # 연관 게시물은 replica
+    replica = get_replica()
+    try:
+        related = (replica.query(Media)
+                   .options(joinedload(Media.files))
+                   .filter(Media.id != media_id, Media.is_public == True)
+                   .order_by(Media.created_at.desc())
+                   .limit(6).all())
+    finally:
+        replica.close()
+
     user = current_user()
     can_delete = user and (user.is_admin or media.user_id == user.id)
     return render_template('media_detail.html', media=media,

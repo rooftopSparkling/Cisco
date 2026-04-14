@@ -1,9 +1,9 @@
 {% extends "base.html" %}
-{% block title %}{{ media.title }} – MediaHub{% endblock %}
+{% block title %}{{ media.title }} – MyNet{% endblock %}
 
 {% block og_tags %}
 <meta property="og:title" content="{{ media.title }}">
-<meta property="og:description" content="{{ media.description or '미디어 공유 플랫폼 MediaHub' }}">
+<meta property="og:description" content="{{ media.description or '미디어 공유 플랫폼 MyNet' }}">
 <meta property="og:type" content="{{ 'video.other' if media.is_video else 'article' }}">
 <meta property="og:url" content="{{ request.url }}">
 {% if media.thumbnail_url %}
