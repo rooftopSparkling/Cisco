@@ -1,10 +1,8 @@
-# MediaHub
+# MyNet
 
 AWS 인프라 기반 디지털 미디어 공유 플랫폼
-
-> Team LSA — 전지훈 · 이민서 · 한성빈
 ---
-> read replica 미구현
+<img width="1547" height="856" alt="스크린샷 2026-04-20 102750" src="https://github.com/user-attachments/assets/673e8d2d-3eaa-4245-b0b7-b42e2287eb39" />
 
 ## 아키텍처
 
